@@ -8,11 +8,9 @@ import numpy as np
 import re
 
 # Set page config
-st.set_page_config(page_title="EasyOCR with Privacy Blur", layout="wide")
+st.set_page_config(page_title="SmartBlur", layout="wide")
 
-
-
-st.title("🔍 SmartBlur ")
+st.title("🔍 SmartBlur")
 st.write("Upload an image - click on detected text regions to blur/unblur them")
 
 # Initialize EasyOCR reader
@@ -75,6 +73,16 @@ def detect_sensitive_info(text):
     
     if re.search(r'\b[A-Z][a-z]+,\s*[A-Z]{2}\s+\d{5}\b', text):
         return True, "Address"
+    
+    # Check custom patterns
+    if 'custom_patterns' in st.session_state:
+        for pattern_data in st.session_state.custom_patterns:
+            if pattern_data['enabled']:
+                try:
+                    if re.search(pattern_data['pattern'], text, re.IGNORECASE):
+                        return True, f"Custom: {pattern_data['name']}"
+                except re.error:
+                    pass  # Skip invalid patterns
     
     return False, None
 
@@ -157,6 +165,8 @@ if 'uploaded_image' not in st.session_state:
     st.session_state.uploaded_image = None
 if 'auto_detect_applied' not in st.session_state:
     st.session_state.auto_detect_applied = False
+if 'custom_patterns' not in st.session_state:
+    st.session_state.custom_patterns = []
 
 # Sidebar settings
 with st.sidebar:
@@ -170,6 +180,79 @@ with st.sidebar:
     auto_blur_ssn = st.checkbox("SSN", value=True)
     auto_blur_cards = st.checkbox("Credit Cards", value=True)
     auto_blur_addresses = st.checkbox("Addresses", value=True)
+    auto_blur_custom = st.checkbox("Custom Patterns", value=True)
+    
+    st.markdown("---")
+    
+    # Custom Patterns Section
+    st.subheader("🔧 Custom Patterns")
+    
+    with st.expander("Add Custom Pattern"):
+        pattern_name = st.text_input("Pattern Name", placeholder="e.g., Employee ID", key="pattern_name_input")
+        pattern_regex = st.text_input("Regex Pattern", placeholder="e.g., EMP-\\d{4}-\\d{4}", key="pattern_regex_input")
+        
+        col_add, col_test = st.columns(2)
+        
+        with col_add:
+            if st.button("Add Pattern", use_container_width=True):
+                if pattern_name and pattern_regex:
+                    try:
+                        # Test if regex is valid
+                        re.compile(pattern_regex)
+                        st.session_state.custom_patterns.append({
+                            'name': pattern_name,
+                            'pattern': pattern_regex,
+                            'enabled': True
+                        })
+                        st.success(f"✅ Added: {pattern_name}")
+                        # Reset auto-detect so new pattern is applied
+                        st.session_state.auto_detect_applied = False
+                        st.rerun()
+                    except re.error as e:
+                        st.error(f"❌ Invalid regex: {e}")
+                else:
+                    st.warning("Please fill both fields")
+        
+        with col_test:
+            test_text = st.text_input("Test text", placeholder="Test your pattern", key="test_text_input")
+            if test_text and pattern_regex:
+                try:
+                    if re.search(pattern_regex, test_text, re.IGNORECASE):
+                        st.success("✅ Match!")
+                    else:
+                        st.info("No match")
+                except re.error:
+                    st.error("Invalid regex")
+    
+    # Display existing custom patterns
+    if st.session_state.custom_patterns:
+        st.write("**Active Custom Patterns:**")
+        
+        patterns_to_remove = []
+        
+        for i, pattern in enumerate(st.session_state.custom_patterns):
+            col1, col2 = st.columns([4, 1])
+            
+            with col1:
+                enabled = st.checkbox(
+                    f"**{pattern['name']}**",
+                    value=pattern['enabled'],
+                    key=f"pattern_enabled_{i}"
+                )
+                st.caption(f"`{pattern['pattern']}`")
+                st.session_state.custom_patterns[i]['enabled'] = enabled
+            
+            with col2:
+                if st.button("🗑️", key=f"delete_pattern_{i}"):
+                    patterns_to_remove.append(i)
+        
+        # Remove patterns after iteration
+        for i in reversed(patterns_to_remove):
+            st.session_state.custom_patterns.pop(i)
+            st.session_state.auto_detect_applied = False
+            st.rerun()
+    else:
+        st.info("No custom patterns added yet")
     
     st.markdown("---")
     st.info("🎯 **How to use:**\n\n1. Upload image\n2. Auto-detection marks sensitive info\n3. Click number buttons to toggle blur\n4. Download result")
@@ -204,7 +287,9 @@ if uploaded_file is not None:
             
             should_blur = False
             if is_sensitive:
-                if info_type == "Email" and auto_blur_emails:
+                if info_type.startswith("Custom:") and auto_blur_custom: # type: ignore
+                    should_blur = True
+                elif info_type == "Email" and auto_blur_emails:
                     should_blur = True
                 elif info_type == "Phone" and auto_blur_phones:
                     should_blur = True
@@ -226,7 +311,7 @@ if uploaded_file is not None:
     with col1:
         st.subheader("📍 Detected Text")
         annotated_image = create_annotated_image(image, results, st.session_state.blurred_indices)
-        st.image(annotated_image, width='stretch')
+        st.image(annotated_image, use_container_width=True)
         
         st.caption("🔴 Red = Blurred | 🟠 Orange = Sensitive (unblurred) | 🟢 Green = Safe")
     
@@ -239,7 +324,7 @@ if uploaded_file is not None:
             bbox = results[i][0]
             preview_image = blur_region(preview_image, bbox, blur_strength)
         
-        st.image(preview_image, width='stretch')
+        st.image(preview_image, use_container_width=True)
         
         # Download button
         from io import BytesIO
@@ -276,7 +361,7 @@ if uploaded_file is not None:
                 elif is_sensitive:
                     button_type = "secondary"
                     prefix = "🟠"
-                    status = info_type
+                    status = info_type if info_type else "Sensitive"
                 else:
                     button_type = "secondary"
                     prefix = "🟢"
@@ -288,7 +373,7 @@ if uploaded_file is not None:
                 
                 # Button click toggles blur
                 if st.button(button_label, key=f"toggle_{col_idx}", 
-                           type=button_type, width='stretch'):
+                           type=button_type, use_container_width=True):
                     if col_idx in st.session_state.blurred_indices:
                         st.session_state.blurred_indices.remove(col_idx)
                     else:
@@ -300,7 +385,7 @@ if uploaded_file is not None:
     col_a, col_b, col_c = st.columns(3)
     
     with col_a:
-        if st.button("🔴 Blur All Sensitive", width='stretch'):
+        if st.button("🔴 Blur All Sensitive", use_container_width=True):
             for i, (bbox, text, confidence) in enumerate(results):
                 is_sensitive, _ = detect_sensitive_info(text)
                 if is_sensitive:
@@ -308,12 +393,12 @@ if uploaded_file is not None:
             st.rerun()
     
     with col_b:
-        if st.button("🟢 Unblur All", width='stretch'):
+        if st.button("🟢 Unblur All", use_container_width=True):
             st.session_state.blurred_indices = set()
             st.rerun()
     
     with col_c:
-        if st.button("🔄 Reset to Auto-Detect", width='stretch'):
+        if st.button("🔄 Reset to Auto-Detect", use_container_width=True):
             st.session_state.blurred_indices = set()
             st.session_state.auto_detect_applied = False
             st.rerun()
@@ -336,6 +421,7 @@ else:
     - 🟢 Green numbers = Safe content
     - Click any number to toggle blur on/off
     - Bulk actions: Blur all sensitive, Unblur all, or Reset
+    - 🔧 **Custom regex patterns** for specific use cases
     
     ### 🔍 Auto-Detects:
     - 📧 Email addresses
@@ -343,18 +429,17 @@ else:
     - 🆔 Social Security Numbers
     - 💳 Credit card numbers
     - 🏠 Street addresses
-    - 👤 Names (optional)
+    - 🔧 Custom patterns you define
     """)
 
 st.markdown("---")
 st.caption("⚠️ Always review results before sharing. This tool provides basic privacy protection.")
 
-
 st.markdown("""
 <style>
     @import url('https://tetunori.github.io/fluent-emoji-webfont/dist/FluentEmojiFlat.css');
 
-    * {
+    *:not(span[data-testid="stIconMaterial"]) {
         font-family: -apple-system, BlinkMacSystemFont, 'Fluent Emoji Flat', sans-serif !important;
     }
 </style>
