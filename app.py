@@ -7,10 +7,21 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import numpy as np
 import re
 
+st.markdown("""
+<script src="https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/twemoji.min.js"></script>
+<script>
+    window.addEventListener('load', function() {
+        twemoji.parse(document.body);
+    });
+</script>
+""", unsafe_allow_html=True)
+
 # Set page config
 st.set_page_config(page_title="EasyOCR with Privacy Blur", layout="wide")
 
-st.title("🔍 Smart Privacy Redactor")
+
+
+st.title("🔍 SmartBlur ")
 st.write("Upload an image - click on detected text regions to blur/unblur them")
 
 # Initialize EasyOCR reader
@@ -28,7 +39,7 @@ def detect_sensitive_info(text):
     text_lower = text.lower()
     
     # Email pattern
-    if re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', text):
+    if re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.?[A-Z|a-z]{2,}\b', text):
         return True, "Email"
     
     # Phone number patterns
@@ -58,10 +69,10 @@ def detect_sensitive_info(text):
         return True, "Credit Card"
     
     # Address indicators
-    address_keywords = ['street', 'st.', ' st ', 'avenue', 'ave.', 'ave ', 'road', 'rd.', 'rd ', 
-                        'drive', 'dr.', 'dr ', 'boulevard', 'blvd.', 'blvd ', 'lane', 'ln.', 'ln ',
-                        'apartment', 'apt.', 'apt ', 'suite', 'ste.', 'ste ', 'court', 'ct.', 'ct ',
-                        'place', 'pl.', 'pl ', 'circle', 'cir.', 'cir ', 'way', 'parkway', 'pkwy']
+    address_keywords = ['street', 'st.', 'avenue', 'ave.', 'ave ', 'road', 'rd.', 
+                        ' drive ', 'dr.', 'boulevard', 'blvd.', 'blvd ', ' lane ', 'ln.',
+                        'apartment', 'apt.', ' apt ', 'suite', 'ste.',  'court', 'ct.', 
+                        'place', 'pl.', 'circle', 'cir.', 'parkway', 'pkwy']
     if any(keyword in text_lower for keyword in address_keywords):
         return True, "Address"
     
@@ -73,9 +84,6 @@ def detect_sensitive_info(text):
     
     if re.search(r'\b[A-Z][a-z]+,\s*[A-Z]{2}\s+\d{5}\b', text):
         return True, "Address"
-    
-    if re.search(r'\b[A-Z][a-z]+\s+[A-Z][a-z]+\b', text):
-        return True, "Possible Name"
     
     return False, None
 
@@ -171,7 +179,6 @@ with st.sidebar:
     auto_blur_ssn = st.checkbox("SSN", value=True)
     auto_blur_cards = st.checkbox("Credit Cards", value=True)
     auto_blur_addresses = st.checkbox("Addresses", value=True)
-    auto_blur_names = st.checkbox("Possible Names", value=False)
     
     st.markdown("---")
     st.info("🎯 **How to use:**\n\n1. Upload image\n2. Auto-detection marks sensitive info\n3. Click number buttons to toggle blur\n4. Download result")
@@ -216,8 +223,6 @@ if uploaded_file is not None:
                     should_blur = True
                 elif info_type == "Address" and auto_blur_addresses:
                     should_blur = True
-                elif info_type == "Possible Name" and auto_blur_names:
-                    should_blur = True
             
             if should_blur:
                 st.session_state.blurred_indices.add(i)
@@ -228,9 +233,9 @@ if uploaded_file is not None:
     col1, col2 = st.columns(2)
     
     with col1:
-        st.subheader("📍 Detected Text (Click numbers below)")
+        st.subheader("📍 Detected Text")
         annotated_image = create_annotated_image(image, results, st.session_state.blurred_indices)
-        st.image(annotated_image, use_container_width=True)
+        st.image(annotated_image, width='stretch')
         
         st.caption("🔴 Red = Blurred | 🟠 Orange = Sensitive (unblurred) | 🟢 Green = Safe")
     
@@ -243,7 +248,7 @@ if uploaded_file is not None:
             bbox = results[i][0]
             preview_image = blur_region(preview_image, bbox, blur_strength)
         
-        st.image(preview_image, use_container_width=True)
+        st.image(preview_image, width='stretch')
         
         # Download button
         from io import BytesIO
@@ -292,7 +297,7 @@ if uploaded_file is not None:
                 
                 # Button click toggles blur
                 if st.button(button_label, key=f"toggle_{col_idx}", 
-                           type=button_type, use_container_width=True):
+                           type=button_type, width='stretch'):
                     if col_idx in st.session_state.blurred_indices:
                         st.session_state.blurred_indices.remove(col_idx)
                     else:
@@ -304,7 +309,7 @@ if uploaded_file is not None:
     col_a, col_b, col_c = st.columns(3)
     
     with col_a:
-        if st.button("🔴 Blur All Sensitive", use_container_width=True):
+        if st.button("🔴 Blur All Sensitive", width='stretch'):
             for i, (bbox, text, confidence) in enumerate(results):
                 is_sensitive, _ = detect_sensitive_info(text)
                 if is_sensitive:
@@ -312,12 +317,12 @@ if uploaded_file is not None:
             st.rerun()
     
     with col_b:
-        if st.button("🟢 Unblur All", use_container_width=True):
+        if st.button("🟢 Unblur All", width='stretch'):
             st.session_state.blurred_indices = set()
             st.rerun()
     
     with col_c:
-        if st.button("🔄 Reset to Auto-Detect", use_container_width=True):
+        if st.button("🔄 Reset to Auto-Detect", width='stretch'):
             st.session_state.blurred_indices = set()
             st.session_state.auto_detect_applied = False
             st.rerun()
