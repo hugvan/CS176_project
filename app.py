@@ -7,15 +7,6 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import numpy as np
 import re
 
-st.markdown("""
-<script src="https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/twemoji.min.js"></script>
-<script>
-    window.addEventListener('load', function() {
-        twemoji.parse(document.body);
-    });
-</script>
-""", unsafe_allow_html=True)
-
 # Set page config
 st.set_page_config(page_title="EasyOCR with Privacy Blur", layout="wide")
 
@@ -357,3 +348,14 @@ else:
 
 st.markdown("---")
 st.caption("⚠️ Always review results before sharing. This tool provides basic privacy protection.")
+
+
+st.markdown("""
+<style>
+    @import url('https://tetunori.github.io/fluent-emoji-webfont/dist/FluentEmojiFlat.css');
+
+    * {
+        font-family: -apple-system, BlinkMacSystemFont, 'Fluent Emoji Flat', sans-serif !important;
+    }
+</style>
+""", unsafe_allow_html=True)
