@@ -1,4 +1,5 @@
 # SmartBlur - Privacy Redaction Tool
+Vaughn Aquino, Aeron Penaflorida
 
 A web-based application built with Streamlit that automatically detects and blurs sensitive information in images using OCR (Optical Character Recognition) technology.
 
